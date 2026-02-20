@@ -1,49 +1,53 @@
 package clases;
 
-public class Cola<T> {
-    private Nodo<T> pFirst;
-    private Nodo<T> pLast;
-    private int size;
+public class Cola {
+    
+    private Nodo inicio;
+    private Nodo fin;
+    private int tamano;
 
     public Cola() {
-        this.pFirst = null;
-        this.pLast = null;
-        this.size = 0;
+        this.inicio = null;
+        this.fin = null;
+        this.tamano = 0;
     }
 
-    // Método para agregar al final (Encolar)
-    public void encolar(T dato) {
-        Nodo<T> pNew = new Nodo<>(dato);
-        if (this.isEmpty()) {
-            this.pFirst = pNew;
-            this.pLast = pNew;
+    // --- MÉTODOS QUE BUSCA EL ADMINISTRADOR ---
+
+    // 1. Método para saber si está vacía
+    public boolean esVacia() {
+        return inicio == null;
+    }
+
+    // 2. Método para meter procesos
+    public void encolar(Proceso p) {
+        Nodo nuevo = new Nodo(p);
+        if (esVacia()) {
+            inicio = nuevo;
+            fin = nuevo;
         } else {
-            this.pLast.setpNext(pNew);
-            this.pLast = pNew;
+            fin.setSiguiente(nuevo);
+            fin = nuevo;
         }
-        this.size++;
+        tamano++;
     }
 
-    // Método para sacar del inicio (Desencolar)
-    public T desencolar() {
-        if (this.isEmpty()) {
-            return null;
+    // 3. Método para sacar procesos (Devuelve un Proceso, no un Object)
+    public Proceso desencolar() {
+        if (!esVacia()) {
+            Proceso dato = inicio.getDato();
+            inicio = inicio.getSiguiente();
+            if (inicio == null) {
+                fin = null;
+            }
+            tamano--;
+            return dato;
         }
-        T dato = this.pFirst.getData();
-        this.pFirst = this.pFirst.getpNext();
-        this.size--;
-        
-        if (this.isEmpty()) {
-            this.pLast = null;
-        }
-        return dato;
+        return null;
     }
 
-    public boolean isEmpty() {
-        return this.pFirst == null;
-    }
-    
-    public int getSize() {
-        return this.size;
+    // 4. Método para ver el inicio (usado para actualizar la lista visual)
+    public Nodo getInicio() {
+        return inicio;
     }
 }
