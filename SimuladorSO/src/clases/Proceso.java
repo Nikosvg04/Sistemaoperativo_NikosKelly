@@ -1,29 +1,39 @@
 package clases;
 
 public class Proceso {
-    
+    private String id;
     private String nombre;
+    private String tipo;      // "Computo" o "E/S"
+    private int tiempoTotal;
     private int tiempoRestante;
+    private int prioridad;    // 1=Alta, 2=Media, 3=Baja
+    
+    // Para métricas
+    private long tiempoLlegada;
 
-    public Proceso(String nombre, int tiempoRestante) {
+    public Proceso(String id, String nombre, String tipo, int tiempo, int prioridad) {
+        this.id = id;
         this.nombre = nombre;
-        this.tiempoRestante = tiempoRestante;
-    }
-
-    public String getNombre() {
-        return nombre;
-    }
-
-    public int getTiempoRestante() {
-        return tiempoRestante;
+        this.tipo = tipo;
+        this.tiempoTotal = tiempo;
+        this.tiempoRestante = tiempo;
+        this.prioridad = prioridad;
+        this.tiempoLlegada = System.currentTimeMillis();
     }
 
     public void restarTiempo() {
-        this.tiempoRestante--;
+        if (tiempoRestante > 0) tiempoRestante--;
+    }
+    
+    public boolean haTerminado() {
+        return tiempoRestante <= 0;
     }
 
-    @Override
-    public String toString() {
-        return nombre + " (" + tiempoRestante + "s)";
-    }
+    // Getters
+    public String getId() { return id; }
+    public String getNombre() { return nombre; }
+    public String getTipo() { return tipo; }
+    public int getTiempoTotal() { return tiempoTotal; }
+    public int getTiempoRestante() { return tiempoRestante; }
+    public int getPrioridad() { return prioridad; }
 }

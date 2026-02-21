@@ -1,146 +1,180 @@
 package clases;
 
 import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.DefaultListModel;
+import javax.swing.JTextArea;
+import javax.swing.JTable;
+import javax.swing.table.DefaultTableModel;
 import java.util.Random;
 
 public class Administrador {
 
-    // --- VARIABLES DE LA INTERFAZ (VISUAL) ---
+    // --- GUI ---
     private JLabel lblCPU;
-    private JList listaVisualListos;     // Referencia a la lista gris de la izquierda
-    private JList listaVisualBloqueados; // Referencia a la lista gris de la derecha
+    private JTable tablaListos;
+    private JTable tablaBloqueados;
+    private JTable tablaTerminados;
+    private JTable tablaSuspendidos; // <--- NUEVO
+    private JTextArea txtLog; 
 
-    // --- VARIABLES LÓGICAS (TUS ESTRUCTURAS DE DATOS) ---
-    private Cola colaListos;      // Tu clase Cola
-    private Cola colaBloqueados;  // Tu clase Cola
-    private Proceso procesoEnCPU; // Tu clase Proceso
+    // --- ESTRUCTURAS ---
+    private Cola colaListos;
+    private Cola colaBloqueados;
+    private Cola colaTerminados;
+    private Cola colaSuspendidos; // <--- NUEVO
+    
+    // --- LÓGICA ---
+    private Proceso procesoEnCPU;
+    private int algoritmo = 0; // 0=FCFS, 1=RR
+    private int quantum = 3;
+    private int contadorQuantum = 0;
+    private int maxMemoria = 10; // Si pasa de 10, va a suspendidos
+    
+    private Random azar = new Random();
+    private int contadorID = 100;
 
-    // --- OTRAS VARIABLES ---
-    private int contadorProcesos;
-    private Random azar;
-
-    // --- CONSTRUCTOR ---
-    public Administrador(JLabel lblCPU, JList listaListos, JList listaBloqueados) {
-        // 1. Guardamos las referencias visuales
+    public Administrador(JLabel lblCPU, JTable tListos, JTable tBloq, JTable tTerm, JTable tSusp, JTextArea log) {
         this.lblCPU = lblCPU;
-        this.listaVisualListos = listaListos;
-        this.listaVisualBloqueados = listaBloqueados;
-
-        // 2. Inicializamos las colas lógicas (VACÍAS AL INICIO)
+        this.tablaListos = tListos;
+        this.tablaBloqueados = tBloq;
+        this.tablaTerminados = tTerm;
+        this.tablaSuspendidos = tSusp;
+        this.txtLog = log;
+        
         this.colaListos = new Cola();
         this.colaBloqueados = new Cola();
+        this.colaTerminados = new Cola();
+        this.colaSuspendidos = new Cola();
+    }
+    
+    // --- GETTERS PARA LA GRÁFICA ---
+    public int getCantidadListos() { return contarCola(colaListos); }
+    public int getCantidadBloqueados() { return contarCola(colaBloqueados); }
+    public int getCantidadSuspendidos() { return contarCola(colaSuspendidos); }
 
-        // 3. Inicializamos variables de control
-        this.procesoEnCPU = null;
-        this.contadorProcesos = 1; // Empezamos en P1
-        this.azar = new Random();
+    // Auxiliar para contar (ya que Cola no tiene size público a veces)
+    private int contarCola(Cola c) {
+        int cont = 0;
+        Nodo temp = c.getInicio();
+        while(temp != null) { cont++; temp = temp.getSiguiente(); }
+        return cont;
     }
 
-    // --- MÉTODO 1: CREAR PROCESO ---
-    public void crearProcesoManual() {
-        int tiempo = azar.nextInt(8) + 3; // Tiempo entre 3 y 10 segundos
-        String nombre = "P" + contadorProcesos;
-
-        Proceso nuevoProceso = new Proceso(nombre, tiempo);
-
-        // A. Lógica: Lo metemos en la cola de datos
-        colaListos.encolar(nuevoProceso);
-
-        // B. Visual: Actualizamos la lista de la izquierda
-        actualizarLista(listaVisualListos, colaListos);
-
-        contadorProcesos++;
-        System.out.println("Creado: " + nombre);
+    public void setAlgoritmo(int tipo) {
+        this.algoritmo = tipo;
+        log("Algoritmo cambiado a: " + (tipo == 0 ? "FCFS" : "Round Robin"));
     }
 
-    // --- MÉTODO 2: GESTIONAR CPU (El Reloj llama a esto) ---
-    public void gestionarCPU() {
-        // CASO A: La CPU está vacía
-        if (procesoEnCPU == null) {
-            // Verificamos si hay alguien esperando en la cola de listos
-            if (!colaListos.esVacia()) {
-                // Sacamos el primero de la cola lógica
-                procesoEnCPU = colaListos.desencolar();
-                
-                // Actualizamos la lista visual (porque sacamos uno)
-                actualizarLista(listaVisualListos, colaListos);
-                
-                // Mostramos en CPU
-                lblCPU.setText(procesoEnCPU.getNombre() + " (" + procesoEnCPU.getTiempoRestante() + "s)");
-            } else {
-                lblCPU.setText("[Vacio]");
-            }
-        } 
-        // CASO B: Hay un proceso en CPU
-        else {
+    public void ejecutar() {
+        // 1. REVISAR SUSPENDIDOS (Swapping in)
+        // Si hay espacio en RAM (Listos < 5) y hay gente esperando en Disco (Suspendidos)
+        if (contarCola(colaListos) < 5 && !colaSuspendidos.esVacia()) {
+            Proceso p = colaSuspendidos.desencolar();
+            colaListos.encolar(p);
+            log("SWAP-IN: Proceso " + p.getId() + " regresa a RAM.");
+            actualizarTabla(tablaSuspendidos, colaSuspendidos);
+        }
+
+        // 2. CPU
+        if (procesoEnCPU != null) {
             procesoEnCPU.restarTiempo();
+            contadorQuantum++;
             
-            // Si el tiempo se acabó
-            if (procesoEnCPU.getTiempoRestante() <= 0) {
-                System.out.println("Terminó proceso: " + procesoEnCPU.getNombre());
+            if (procesoEnCPU.haTerminado()) {
+                log("Terminó: " + procesoEnCPU.getId());
+                colaTerminados.encolar(procesoEnCPU);
+                actualizarTabla(tablaTerminados, colaTerminados);
                 procesoEnCPU = null;
-                lblCPU.setText("[Vacio]");
-                
-                // Intentamos meter el siguiente inmediatamente
-                gestionarCPU(); 
-            } else {
-                // Si no acabó, solo actualizamos el texto
-                lblCPU.setText(procesoEnCPU.getNombre() + " (" + procesoEnCPU.getTiempoRestante() + "s)");
+                contadorQuantum = 0;
+                lblCPU.setText("[LIBRE]");
+            } 
+            else if (algoritmo == 1 && contadorQuantum >= quantum) {
+                log("Quantum RR: " + procesoEnCPU.getId() + " sale de CPU.");
+                gestionarIngreso(procesoEnCPU); // Reingresa a cola (o suspendidos)
+                procesoEnCPU = null;
+                contadorQuantum = 0;
+                lblCPU.setText("[CAMBIO]");
+            }
+            else {
+                lblCPU.setText(procesoEnCPU.getId() + " (" + procesoEnCPU.getTiempoRestante() + "s)");
             }
         }
+        
+        // 3. DESPACHADOR
+        if (procesoEnCPU == null && !colaListos.esVacia()) {
+            procesoEnCPU = colaListos.desencolar();
+            contadorQuantum = 0;
+            lblCPU.setText(procesoEnCPU.getId() + " (" + procesoEnCPU.getTiempoRestante() + "s)");
+        }
+        
+        actualizarTabla(tablaListos, colaListos);
+        actualizarTabla(tablaBloqueados, colaBloqueados);
     }
 
-    // --- MÉTODO 3: BLOQUEAR (Interrupción E/S) ---
+    // --- GESTIÓN DE MEMORIA (Listos vs Suspendidos) ---
+    private void gestionarIngreso(Proceso p) {
+        // Si la RAM está llena (> MaxMemoria), mandamos a Suspendidos
+        if (contarCola(colaListos) >= maxMemoria) {
+            colaSuspendidos.encolar(p);
+            log("MEMORIA LLENA: " + p.getId() + " va a Suspendidos (Disco).");
+            actualizarTabla(tablaSuspendidos, colaSuspendidos);
+        } else {
+            colaListos.encolar(p);
+        }
+        actualizarTabla(tablaListos, colaListos);
+    }
+
+    public void cargarDesdeArchivo(Cola nuevos) {
+        while (!nuevos.esVacia()) {
+            gestionarIngreso(nuevos.desencolar());
+        }
+    }
+    
+    public void crearProcesosAleatorios(int cantidad) {
+        for (int i=0; i<cantidad; i++) {
+            contadorID++;
+            String id = "R" + contadorID;
+            String tipo = (azar.nextBoolean()) ? "Computo" : "E/S";
+            int tiempo = azar.nextInt(10) + 2;
+            int prio = azar.nextInt(3) + 1;
+            Proceso p = new Proceso(id, "Random", tipo, tiempo, prio);
+            gestionarIngreso(p);
+        }
+        log("Creados " + cantidad + " procesos aleatorios.");
+    }
+
     public void bloquearProceso() {
-        if (this.procesoEnCPU != null) {
-            // A. Lógica: Lo metemos en la Cola de Bloqueados
+        if (procesoEnCPU != null) {
+            log("Bloqueo E/S: " + procesoEnCPU.getId());
             colaBloqueados.encolar(procesoEnCPU);
-            
-            // B. Visual: Actualizamos la lista derecha
-            actualizarLista(listaVisualBloqueados, colaBloqueados);
-            
-            // C. Liberamos la CPU
-            this.procesoEnCPU = null;
-            lblCPU.setText("[Vacio]");
-            
-            System.out.println("Proceso bloqueado por E/S.");
+            procesoEnCPU = null;
+            contadorQuantum = 0;
+            lblCPU.setText("[LIBRE]");
+            actualizarTabla(tablaBloqueados, colaBloqueados);
         }
     }
 
-    // --- MÉTODO 4: DESBLOQUEAR (Terminar E/S) ---
     public void desbloquearProceso() {
         if (!colaBloqueados.esVacia()) {
-            // A. Sacamos de bloqueados
             Proceso p = colaBloqueados.desencolar();
-            
-            // B. Metemos en listos
-            colaListos.encolar(p);
-            
-            // C. Actualizamos AMBAS listas visualmente
-            actualizarLista(listaVisualBloqueados, colaBloqueados);
-            actualizarLista(listaVisualListos, colaListos);
-            
-            System.out.println("Proceso desbloqueado: " + p.getNombre());
+            gestionarIngreso(p); // Intenta volver a listos o suspendidos
+            log("Termina E/S: " + p.getId());
+            actualizarTabla(tablaBloqueados, colaBloqueados);
         }
     }
 
-    // --- MÉTODO AUXILIAR PARA PINTAR LAS LISTAS ---
-    // Este método lee tu Cola (Nodo a Nodo) y llena el JList
-    private void actualizarLista(JList listaVisual, Cola colaLogica) {
-        DefaultListModel<String> modelo = new DefaultListModel<>();
-        
-        // Verificamos que la cola no esté vacía para evitar errores
-        if (!colaLogica.esVacia()) {
-            Nodo temp = colaLogica.getInicio();
-            while (temp != null) {
-                // Agregamos el texto "P1 (5s)" a la lista
-                modelo.addElement(temp.getDato().getNombre() + " (" + temp.getDato().getTiempoRestante() + "s)");
-                temp = temp.getSiguiente();
-            }
+    private void actualizarTabla(JTable tabla, Cola cola) {
+        DefaultTableModel modelo = (DefaultTableModel) tabla.getModel();
+        modelo.setRowCount(0);
+        Nodo temp = cola.getInicio();
+        while (temp != null) {
+            Proceso p = temp.getDato();
+            modelo.addRow(new Object[]{p.getId(), p.getNombre(), p.getTiempoRestante(), p.getTipo(), p.getPrioridad()});
+            temp = temp.getSiguiente();
         }
-        
-        listaVisual.setModel(modelo);
+    }
+    
+    private void log(String msg) {
+        txtLog.append(msg + "\n");
+        txtLog.setCaretPosition(txtLog.getDocument().getLength());
     }
 }

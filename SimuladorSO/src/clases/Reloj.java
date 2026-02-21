@@ -3,36 +3,34 @@ package clases;
 import javax.swing.JLabel;
 
 public class Reloj extends Thread {
-    
-    private Administrador administrador;
-    private JLabel lblReloj; 
+    private Administrador admin;
+    private JLabel lblCiclos;
     private int ciclo = 0;
+    private int velocidad = 1000; // 1 segundo por defecto
+    private boolean pausado = false;
 
-    // Constructor que recibe el admin y la etiqueta
-    public Reloj(Administrador administrador, JLabel lblReloj) {
-        this.administrador = administrador;
-        this.lblReloj = lblReloj;
+    public Reloj(Administrador admin, JLabel lblCiclos) {
+        this.admin = admin;
+        this.lblCiclos = lblCiclos;
+    }
+
+    public void setVelocidad(int ms) {
+        this.velocidad = ms;
     }
 
     @Override
     public void run() {
         try {
             while (true) {
-                // 1. Actualizamos el texto del ciclo visualmente
-                lblReloj.setText("Ciclo: " + ciclo);
-                
-                // 2. ¡AQUÍ ESTÁ LA CLAVE! 
-                // Le ordenamos al administrador que mueva los procesos
-                administrador.gestionarCPU();
-                
-                // 3. Esperamos 1 segundo (1000 milisegundos)
-                Thread.sleep(1000);
-                
-                // 4. Aumentamos el contador
-                ciclo++;
+                if (!pausado) {
+                    lblCiclos.setText("Ciclo: " + ciclo);
+                    admin.ejecutar(); // Mueve todo el sistema
+                    ciclo++;
+                }
+                Thread.sleep(velocidad);
             }
         } catch (InterruptedException e) {
-            System.err.println("Reloj interrumpido");
+            System.out.println("Reloj detenido");
         }
     }
 }
