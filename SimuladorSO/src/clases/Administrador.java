@@ -31,6 +31,7 @@ public class Administrador {
     
     private Random azar = new Random();
     private int contadorID = 100;
+    private Planificador planificador = new Planificador();
 
     public Administrador(JLabel lblCPU, JTable tListos, JTable tBloq, JTable tTerm, JTable tSusp, JTextArea log) {
         this.lblCPU = lblCPU;
@@ -61,7 +62,14 @@ public class Administrador {
 
     public void setAlgoritmo(int tipo) {
         this.algoritmo = tipo;
-        log("Algoritmo cambiado a: " + (tipo == 0 ? "FCFS" : "Round Robin"));
+        String nombreAlgo = "";
+        switch(tipo) {
+            case 0: nombreAlgo = "FCFS"; break;
+            case 1: nombreAlgo = "Round Robin"; break;
+            case 2: nombreAlgo = "Prioridad"; break;
+            case 3: nombreAlgo = "SRT"; break;
+        }
+        log("Algoritmo cambiado a: " + nombreAlgo);
     }
 
     public void ejecutar() {
@@ -101,9 +109,14 @@ public class Administrador {
         
         // 3. DESPACHADOR
         if (procesoEnCPU == null && !colaListos.esVacia()) {
-            procesoEnCPU = colaListos.desencolar();
+            // Aquí llamamos a la lógica que copiaste en la clase Planificador
+            procesoEnCPU = planificador.obtenerSiguiente(colaListos, algoritmo); 
+            
             contadorQuantum = 0;
-            lblCPU.setText(procesoEnCPU.getId() + " (" + procesoEnCPU.getTiempoRestante() + "s)");
+            if (procesoEnCPU != null) {
+                lblCPU.setText(procesoEnCPU.getId() + " (" + procesoEnCPU.getTiempoRestante() + "s)");
+                log("Despachador: Seleccionado " + procesoEnCPU.getId() + " usando algoritmo " + algoritmo);
+            }
         }
         
         actualizarTabla(tablaListos, colaListos);
